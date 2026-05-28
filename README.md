@@ -8,6 +8,10 @@ This repo avoids the mutable `curl -fsSL https://x.ai/cli/install.sh | bash` ins
 - Home Manager module (`home.nix`)
 - Non-flake compatibility (`default.nix`, `shell.nix`)
 
+## Pinned upstream version
+The source of truth for the pinned Grok CLI version is `pkgs/grok-cli.nix` (`version = "...";` plus architecture-specific hashes).
+Current pin: `0.2.3`.
+
 ## Why this exists
 NixOS users usually want declarative, reproducible installs that:
 - live in the Nix store
@@ -69,6 +73,7 @@ or
 4. Validate:
    - `nix flake show`
    - `NIXPKGS_ALLOW_UNFREE=1 nix build --impure .#grok-cli`
+5. Create a git tag `v<version>` (for example `v0.2.3`) and publish a GitHub Release with the same version tag to keep repository releases aligned with upstream Grok versioning.
 
 ## License
 Repository code: see `LICENSE`.

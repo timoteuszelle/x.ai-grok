@@ -5,15 +5,16 @@
 , autoPatchelfHook
 }:
 let
-  version = "0.1.220";
+  # Upstream Grok CLI version pinned by this package.
+  version = "0.2.3";
   artifacts = {
     x86_64-linux = {
       url = "https://x.ai/cli/grok-${version}-linux-x86_64";
-      hash = "sha256-mNMx1k38T7Ha6GJHUhjMzdGV92g5uDYaBnivL9OINks=";
+      hash = "sha256-KgxPXQtYpH8wwrOGHUZ3SDc0jG0/fiT02GJ7ylDdqcw=";
     };
     aarch64-linux = {
       url = "https://x.ai/cli/grok-${version}-linux-aarch64";
-      hash = "sha256-OxXvwlj0IZ0Bc2rO5wxXWoFn+XDLTUl6OwwhhEDbWP8=";
+      hash = "sha256-qd0S4znFg52Gq3EC5Lm90NqzI4zSVMHMG1E3sm+v1os=";
     };
   };
   artifact =
