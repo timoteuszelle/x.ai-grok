@@ -10,7 +10,6 @@ This repo avoids the mutable `curl -fsSL https://x.ai/cli/install.sh | bash` ins
 
 ## Pinned upstream version
 The source of truth for the pinned Grok CLI version is `pkgs/grok-cli.nix` (`version = "...";` plus architecture-specific hashes).
-Current pin: `0.2.3`.
 
 ## Why this exists
 NixOS users usually want declarative, reproducible installs that:
@@ -79,12 +78,11 @@ or
 This repository includes two workflows to automate updates and releases:
 
 - `.github/workflows/update-grok-cli.yml`
-  - Triggers: scheduled (`17 4 * * *`) and manual (`workflow_dispatch`)
+  - Triggers: scheduled (`17 4,16 * * *`) and manual (`workflow_dispatch`)
   - Checks `https://x.ai/cli/stable` for the latest version
   - If newer than the current pin, updates:
     - `pkgs/grok-cli.nix` version
     - `pkgs/grok-cli.nix` x86_64 and aarch64 hashes
-    - `README.md` current pin line
   - Runs validation (`nix flake show` and `NIXPKGS_ALLOW_UNFREE=1 nix build --impure .#grok-cli`)
   - Opens a PR with the update
 
