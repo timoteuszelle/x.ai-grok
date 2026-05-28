@@ -1,0 +1,83 @@
+name: Update Grok CLI
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-grok-cli
+  cancel-in-progress: false
+
+jobs:
+  update-grok-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Detect upstream version and update package pin
+        id: update
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          latest_version="$(curl -fsSL https://x.ai/cli/stable | tr -d '[:space:]')"
+          if [[ ! "$latest_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z._-]+)?$ ]]; then
+            echo "Unexpected upstream version format: $latest_version" >&2
+            exit 1
+          fi
+
+          # shellcheck disable=SC2016
+          current_version="$(python3 -c 'import pathlib,re,sys; t=pathlib.Path("pkgs/grok-cli.nix").read_text(); m=re.search(r"version\\s*=\\s*\\\"([^\\\"]+)\\\"\\s*;", t); print(m.group(1) if m else sys.exit("Could not parse current version in pkgs/grok-cli.nix"))')"
+
+          {
+            echo "current_version=$current_version"
+            echo "latest_version=$latest_version"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "$current_version" == "$latest_version" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # shellcheck disable=SC2016
+          x86_hash="$(nix store prefetch-file --json "https://x.ai/cli/grok-${latest_version}-linux-x86_64" | python3 -c 'import json, sys; print(json.load(sys.stdin)["hash"])')"
+          # shellcheck disable=SC2016
+          arm_hash="$(nix store prefetch-file --json "https://x.ai/cli/grok-${latest_version}-linux-aarch64" | python3 -c 'import json, sys; print(json.load(sys.stdin)["hash"])')"
+
+          # shellcheck disable=SC2016
+          VERSION="$latest_version" X86_HASH="$x86_hash" ARM_HASH="$arm_hash" python3 -c 'import os,pathlib,re,sys; v=os.environ["VERSION"]; x=os.environ["X86_HASH"]; a=os.environ["ARM_HASH"]; p=pathlib.Path("pkgs/grok-cli.nix"); t=p.read_text(); t,n=re.subn(r"(version\\s*=\\s*\\\")[^\\\"]+(\\\";\\s*)", rf"\\g<1>{v}\\2", t, count=1); n==1 or sys.exit("Failed to update version in pkgs/grok-cli.nix"); t,n=re.subn(r"(x86_64-linux\\s*=\\s*\\{\\s*[^}]*?hash\\s*=\\s*\\\")[^\\\"]+(\\\";\\s*)", rf"\\g<1>{x}\\2", t, count=1, flags=re.S); n==1 or sys.exit("Failed to update x86_64 hash in pkgs/grok-cli.nix"); t,n=re.subn(r"(aarch64-linux\\s*=\\s*\\{\\s*[^}]*?hash\\s*=\\s*\\\")[^\\\"]+(\\\";\\s*)", rf"\\g<1>{a}\\2", t, count=1, flags=re.S); n==1 or sys.exit("Failed to update aarch64 hash in pkgs/grok-cli.nix"); p.write_text(t); rp=pathlib.Path("README.md"); rt=rp.read_text() if rp.exists() else None; rt is None or (lambda m: m[0]==1 and rp.write_text(m[1]))(re.subn(r"Current pin:\\s*`[^`]+`\\.", f"Current pin: `{v}`.", rt, count=1))'
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Validate flake and package build
+        if: steps.update.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          nix flake show
+          NIXPKGS_ALLOW_UNFREE=1 nix build --impure .#grok-cli
+
+      - name: Create pull request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/grok-cli-${{ steps.update.outputs.latest_version }}
+          delete-branch: true
+          title: "chore: bump grok-cli to ${{ steps.update.outputs.latest_version }}"
+          commit-message: "chore: bump grok-cli to ${{ steps.update.outputs.latest_version }}"
+          body: |
+            Automated update of the Grok CLI package pin.
+
+            - Current version: `${{ steps.update.outputs.current_version }}`
+            - Latest upstream: `${{ steps.update.outputs.latest_version }}`
+            - Updated `pkgs/grok-cli.nix` (version and architecture hashes)
+            - Updated `README.md` current pin

@@ -1,0 +1,74 @@
+name: Release from pinned version
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - pkgs/grok-cli.nix
+      - .github/workflows/release-from-pin.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-from-pin
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read pinned Grok CLI version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(python3 -c 'import pathlib,re,sys; t=pathlib.Path("pkgs/grok-cli.nix").read_text(); m=re.search(r"version\\s*=\\s*\\\"([^\\\"]+)\\\"\\s*;", t); print(m.group(1) if m else sys.exit("Could not parse version in pkgs/grok-cli.nix"))')"
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Create or reuse GitHub release
+        id: release
+        uses: actions/github-script@v7
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = process.env.TAG;
+            const version = process.env.VERSION;
+
+            try {
+              const existing = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              core.info(`Release already exists: ${existing.data.html_url}`);
+              core.setOutput("url", existing.data.html_url);
+            } catch (error) {
+              if (error.status !== 404) throw error;
+
+              const created = await github.rest.repos.createRelease({
+                owner,
+                repo,
+                tag_name: tag,
+                target_commitish: context.sha,
+                name: tag,
+                body: `Automated release for Grok CLI ${version}.`,
+                draft: false,
+                prerelease: false,
+                generate_release_notes: true
+              });
+
+              core.info(`Created release: ${created.data.html_url}`);
+              core.setOutput("url", created.data.html_url);
+            }
+
+      - name: Print release URL
+        run: 'echo "Release URL: ${{ steps.release.outputs.url }}"'
