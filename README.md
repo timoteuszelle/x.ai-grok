@@ -72,7 +72,7 @@ or
 4. Validate:
    - `nix flake show`
    - `NIXPKGS_ALLOW_UNFREE=1 nix build --impure .#grok-cli`
-5. Create a git tag `v<version>` (for example `v0.2.3`) and publish a GitHub Release with the same version tag to keep repository releases aligned with upstream Grok versioning.
+5. Create a git tag `v<current-version>` (matching `pkgs/grok-cli.nix`) and publish a GitHub Release with the same version tag to keep repository releases aligned with upstream Grok versioning.
 
 ## Automation (GitHub Actions)
 This repository includes two workflows to automate updates and releases:
