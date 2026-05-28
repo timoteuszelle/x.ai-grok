@@ -75,6 +75,31 @@ or
    - `NIXPKGS_ALLOW_UNFREE=1 nix build --impure .#grok-cli`
 5. Create a git tag `v<version>` (for example `v0.2.3`) and publish a GitHub Release with the same version tag to keep repository releases aligned with upstream Grok versioning.
 
+## Automation (GitHub Actions)
+This repository includes two workflows to automate updates and releases:
+
+- `.github/workflows/update-grok-cli.yml`
+  - Triggers: scheduled (`17 4 * * *`) and manual (`workflow_dispatch`)
+  - Checks `https://x.ai/cli/stable` for the latest version
+  - If newer than the current pin, updates:
+    - `pkgs/grok-cli.nix` version
+    - `pkgs/grok-cli.nix` x86_64 and aarch64 hashes
+    - `README.md` current pin line
+  - Runs validation (`nix flake show` and `NIXPKGS_ALLOW_UNFREE=1 nix build --impure .#grok-cli`)
+  - Opens a PR with the update
+
+- `.github/workflows/release-from-pin.yml`
+  - Triggers: push to `main` when `pkgs/grok-cli.nix` changes, and manual (`workflow_dispatch`)
+  - Reads the pinned version from `pkgs/grok-cli.nix`
+  - Uses tag format `v<version>`
+  - Creates a release if missing, or reuses the existing release for that tag
+
+Manual dispatch examples:
+- `gh workflow run update-grok-cli.yml --repo timoteuszelle/x.ai-grok`
+- `gh workflow run release-from-pin.yml --repo timoteuszelle/x.ai-grok`
+
+Note: pushing workflow-file changes over HTTPS requires a token with `workflow` scope.
+
 ## License
 Repository code: see `LICENSE`.
 Upstream Grok CLI binary: licensed by xAI.
