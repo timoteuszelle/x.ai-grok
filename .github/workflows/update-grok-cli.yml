@@ -2,8 +2,10 @@ name: Update Grok CLI
 
 on:
   schedule:
-    - cron: "17 4 * * *"
+    - cron: "17 4,16 * * *"
   workflow_dispatch:
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
   contents: write
@@ -18,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31

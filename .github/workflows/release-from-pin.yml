@@ -8,6 +8,8 @@ on:
       - pkgs/grok-cli.nix
       - .github/workflows/release-from-pin.yml
   workflow_dispatch:
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
   contents: write
@@ -21,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Read pinned Grok CLI version
         id: version
@@ -36,7 +38,7 @@ jobs:
 
       - name: Create or reuse GitHub release
         id: release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ steps.version.outputs.tag }}
