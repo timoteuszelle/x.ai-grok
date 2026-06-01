@@ -6,15 +6,15 @@
 }:
 let
   # Upstream Grok CLI version pinned by this package.
-  version = "0.2.14";
+  version = "0.2.16";
   artifacts = {
     x86_64-linux = {
       url = "https://x.ai/cli/grok-${version}-linux-x86_64";
-      hash = "sha256-B78S/zoE2vo6LemYcJH7onU+/DRNE7F7KzgaEX55NBg=";
+      hash = "sha256-0kScpiCt4bi/AO/9UKf/WifmsyDwd3sdHPgFJcDA50I=";
     };
     aarch64-linux = {
       url = "https://x.ai/cli/grok-${version}-linux-aarch64";
-      hash = "sha256-0Cmt7Qm3f+4LyKCxFGJ0a/IMIzwHgWVjWRHORo0KZG4=";
+      hash = "sha256-tl2jMiCURsw8pFFa79u9GDUNJbm0PVvJQjaotfdRIb4=";
     };
   };
   artifact =
