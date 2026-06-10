@@ -84,13 +84,23 @@ This repository includes two workflows to automate updates and releases:
     - `pkgs/grok-cli.nix` version
     - `pkgs/grok-cli.nix` x86_64 and aarch64 hashes
   - Runs validation (`nix flake show` and `NIXPKGS_ALLOW_UNFREE=1 nix build --impure .#grok-cli`)
-  - Opens a PR with the update
+  - Opens a PR with the update and applies the `automerge` label
 
 - `.github/workflows/release-from-pin.yml`
   - Triggers: push to `main` when `pkgs/grok-cli.nix` changes, and manual (`workflow_dispatch`)
   - Reads the pinned version from `pkgs/grok-cli.nix`
   - Uses tag format `v<version>`
   - Creates a release if missing, or reuses the existing release for that tag
+
+- `.github/workflows/automerge-grok-cli-bumps.yml`
+  - Triggers: `pull_request_target` changes and completed `check_suite` events
+  - Targets only regular automated bump PRs (`chore: bump grok-cli to ...` on `chore/grok-cli-...`)
+  - Requires:
+    - PR author `github-actions[bot]`
+    - `automerge` label
+    - PR is open and non-draft
+    - `mergeable_state == clean` (no conflicts and required checks green)
+  - Enables GitHub auto-merge for matching PRs
 
 Manual dispatch examples:
 - `gh workflow run update-grok-cli.yml --repo timoteuszelle/x.ai-grok`

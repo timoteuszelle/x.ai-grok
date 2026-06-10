@@ -97,6 +97,7 @@ jobs:
           delete-branch: true
           title: "chore: bump grok-cli to ${{ steps.update.outputs.latest_version }}"
           commit-message: "chore: bump grok-cli to ${{ steps.update.outputs.latest_version }}"
+          labels: automerge
           body: |
             Automated update of the Grok CLI package pin.
 
