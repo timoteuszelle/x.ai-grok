@@ -9,6 +9,7 @@ env:
 
 permissions:
   contents: write
+  issues: write
   pull-requests: write
 
 concurrency:
@@ -89,6 +90,31 @@ jobs:
           nix flake show
           NIXPKGS_ALLOW_UNFREE=1 nix build --impure .#grok-cli
 
+      - name: Ensure automerge label exists
+        if: steps.update.outputs.changed == 'true'
+        continue-on-error: true
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const name = "automerge";
+
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name });
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name,
+                color: "0e8a16",
+                description: "PRs eligible for automatic merge"
+              });
+            }
+
       - name: Create pull request
         if: steps.update.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v8
@@ -97,6 +123,7 @@ jobs:
           delete-branch: true
           title: "chore: bump grok-cli to ${{ steps.update.outputs.latest_version }}"
           commit-message: "chore: bump grok-cli to ${{ steps.update.outputs.latest_version }}"
+          labels: automerge
           body: |
             Automated update of the Grok CLI package pin.
 
