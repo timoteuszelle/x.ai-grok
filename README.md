@@ -97,7 +97,7 @@ This repository includes two workflows to automate updates and releases:
   - Targets only regular automated bump PRs (`chore: bump grok-cli to ...` on `chore/grok-cli-...`)
   - Requires:
     - PR author `github-actions[bot]`
-    - `automerge` label
+    - `automerge` label (create this label once in the repository)
     - PR is open and non-draft
     - `mergeable_state == clean` (no conflicts and required checks green)
   - Enables GitHub auto-merge for matching PRs
