@@ -36,102 +36,107 @@ jobs:
             const requiredLabel = "automerge";
             const allowedAuthors = new Set(["github-actions[bot]"]);
 
-            async function getPullRequest() {
+            async function getPullRequests() {
               if (context.payload.pull_request) {
-                return context.payload.pull_request;
+                return [context.payload.pull_request];
               }
 
               const pullRefs = context.payload.check_suite?.pull_requests ?? [];
-              if (pullRefs.length === 0) return null;
+              if (pullRefs.length === 0) return [];
 
-              const prRef = pullRefs[0];
-              const { data: pr } = await github.rest.pulls.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prRef.number
-              });
-              return pr;
+              const pulls = await Promise.all(
+                pullRefs.map((prRef) =>
+                  github.rest.pulls.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: prRef.number
+                  })
+                )
+              );
+              return pulls.map((pull) => pull.data);
             }
 
-            const pr = await getPullRequest();
-            if (!pr) {
+            const prs = await getPullRequests();
+            if (prs.length === 0) {
               core.info("No pull request associated with this event.");
               return;
             }
 
-            if (pr.base.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
-              core.info(`Skipping PR #${pr.number}: different base repository.`);
-              return;
-            }
+            for (const pr of prs) {
+              if (pr.base.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+                core.info(`Skipping PR #${pr.number}: different base repository.`);
+                continue;
+              }
 
-            if (!allowedAuthors.has(pr.user.login)) {
-              core.info(`Skipping PR #${pr.number}: author '${pr.user.login}' is not allowed.`);
-              return;
-            }
+              if (!allowedAuthors.has(pr.user.login)) {
+                core.info(`Skipping PR #${pr.number}: author '${pr.user.login}' is not allowed.`);
+                continue;
+              }
 
-            if (!titlePattern.test(pr.title)) {
-              core.info(`Skipping PR #${pr.number}: title '${pr.title}' does not match bump pattern.`);
-              return;
-            }
+              if (!titlePattern.test(pr.title)) {
+                core.info(`Skipping PR #${pr.number}: title '${pr.title}' does not match bump pattern.`);
+                continue;
+              }
 
-            if (!branchPattern.test(pr.head.ref)) {
-              core.info(`Skipping PR #${pr.number}: branch '${pr.head.ref}' does not match bump pattern.`);
-              return;
-            }
+              if (!branchPattern.test(pr.head.ref)) {
+                core.info(`Skipping PR #${pr.number}: branch '${pr.head.ref}' does not match bump pattern.`);
+                continue;
+              }
 
-            if (pr.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
-              core.info(`Skipping PR #${pr.number}: head branch is not in this repository.`);
-              return;
-            }
+              if (pr.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+                core.info(`Skipping PR #${pr.number}: head branch is not in this repository.`);
+                continue;
+              }
 
-            if (pr.state !== "open" || pr.draft) {
-              core.info(`Skipping PR #${pr.number}: PR is not open and ready for merge.`);
-              return;
-            }
+              if (pr.state !== "open" || pr.draft) {
+                core.info(`Skipping PR #${pr.number}: PR is not open and ready for merge.`);
+                continue;
+              }
 
-            const labelNames = (pr.labels ?? []).map((label) => label.name);
-            if (!labelNames.includes(requiredLabel)) {
-              core.info(`Skipping PR #${pr.number}: missing required label '${requiredLabel}'.`);
-              return;
-            }
+              const labelNames = (pr.labels ?? []).map((label) => label.name);
+              if (!labelNames.includes(requiredLabel)) {
+                core.info(`Skipping PR #${pr.number}: missing required label '${requiredLabel}'.`);
+                continue;
+              }
 
-            const { data: latestPr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: pr.number
-            });
+              const { data: latestPr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number
+              });
 
-            if (latestPr.auto_merge) {
-              core.info(`Auto-merge already enabled for PR #${latestPr.number}.`);
-              return;
-            }
+              if (latestPr.auto_merge) {
+                core.info(`Auto-merge already enabled for PR #${latestPr.number}.`);
+                continue;
+              }
 
-            if (latestPr.mergeable === false || latestPr.mergeable_state !== "clean") {
-              core.info(
-                `Skipping PR #${latestPr.number}: mergeable=${latestPr.mergeable}, mergeable_state=${latestPr.mergeable_state}.`
-              );
-              return;
-            }
+              if (latestPr.mergeable === false || latestPr.mergeable_state !== "clean") {
+                core.info(
+                  `Skipping PR #${latestPr.number}: mergeable=${latestPr.mergeable}, mergeable_state=${latestPr.mergeable_state}.`
+                );
+                continue;
+              }
 
-            await github.graphql(
-              `
-                mutation EnableAutoMerge($pullRequestId: ID!) {
-                  enablePullRequestAutoMerge(
-                    input: {
-                      pullRequestId: $pullRequestId
-                      mergeMethod: MERGE
-                    }
-                  ) {
-                    pullRequest {
-                      number
-                      autoMergeRequest {
-                        enabledAt
+              await github.graphql(
+                `
+                  mutation EnableAutoMerge($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(
+                      input: {
+                        pullRequestId: $pullRequestId
+                        mergeMethod: MERGE
+                      }
+                    ) {
+                      pullRequest {
+                        number
+                        autoMergeRequest {
+                          enabledAt
+                        }
                       }
                     }
                   }
-                }
-              `,
-              { pullRequestId: latestPr.node_id }
-            );
+                `,
+                { pullRequestId: latestPr.node_id }
+              );
 
-            core.info(`Enabled auto-merge for PR #${latestPr.number}.`);
+              core.info(`Enabled auto-merge for PR #${latestPr.number}.`);
+            }
