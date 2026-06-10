@@ -9,6 +9,7 @@ env:
 
 permissions:
   contents: write
+  issues: write
   pull-requests: write
 
 concurrency:
@@ -88,6 +89,31 @@ jobs:
           set -euo pipefail
           nix flake show
           NIXPKGS_ALLOW_UNFREE=1 nix build --impure .#grok-cli
+
+      - name: Ensure automerge label exists
+        if: steps.update.outputs.changed == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const name = "automerge";
+
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name });
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name,
+                color: "0e8a16",
+                description: "PRs eligible for automatic merge"
+              });
+            }
 
       - name: Create pull request
         if: steps.update.outputs.changed == 'true'
