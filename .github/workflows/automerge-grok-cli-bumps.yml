@@ -20,7 +20,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: automerge-grok-cli-bumps-${{ github.event.pull_request.number || github.event.check_suite.id }}
+  group: automerge-grok-cli-bumps-${{ github.event.pull_request.number || github.event.check_suite.pull_requests[0].number || github.event.check_suite.id }}
   cancel-in-progress: true
 
 jobs:
