@@ -116,6 +116,7 @@ jobs:
             }
 
       - name: Create pull request
+        id: create-pr
         if: steps.update.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v8
         with:
@@ -130,3 +131,40 @@ jobs:
             - Current version: `${{ steps.update.outputs.current_version }}`
             - Latest upstream: `${{ steps.update.outputs.latest_version }}`
             - Updated `pkgs/grok-cli.nix` (version and architecture hashes)
+
+      - name: Enable auto-merge on bump PR
+        if: steps.update.outputs.changed == 'true' && steps.create-pr.outputs.pull-request-number != ''
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const prNumber = parseInt("${{ steps.create-pr.outputs.pull-request-number }}", 10);
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+            if (pr.auto_merge) {
+              core.info(`Auto-merge already enabled for PR #${prNumber}.`);
+              return;
+            }
+            await github.graphql(
+              `
+                mutation EnableAutoMerge($pullRequestId: ID!) {
+                  enablePullRequestAutoMerge(
+                    input: {
+                      pullRequestId: $pullRequestId
+                      mergeMethod: MERGE
+                    }
+                  ) {
+                    pullRequest {
+                      number
+                      autoMergeRequest {
+                        enabledAt
+                      }
+                    }
+                  }
+                }
+              `,
+              { pullRequestId: pr.node_id }
+            );
+            core.info(`Enabled auto-merge for PR #${prNumber}.`);
