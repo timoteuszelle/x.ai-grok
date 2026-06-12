@@ -147,24 +147,41 @@ jobs:
               core.info(`Auto-merge already enabled for PR #${prNumber}.`);
               return;
             }
-            await github.graphql(
-              `
-                mutation EnableAutoMerge($pullRequestId: ID!) {
-                  enablePullRequestAutoMerge(
-                    input: {
-                      pullRequestId: $pullRequestId
-                      mergeMethod: MERGE
-                    }
-                  ) {
-                    pullRequest {
-                      number
-                      autoMergeRequest {
-                        enabledAt
+            try {
+              await github.graphql(
+                `
+                  mutation EnableAutoMerge($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(
+                      input: {
+                        pullRequestId: $pullRequestId
+                        mergeMethod: MERGE
+                      }
+                    ) {
+                      pullRequest {
+                        number
+                        autoMergeRequest {
+                          enabledAt
+                        }
                       }
                     }
                   }
                 }
-              `,
-              { pullRequestId: pr.node_id }
-            );
-            core.info(`Enabled auto-merge for PR #${prNumber}.`);
+                `,
+                { pullRequestId: pr.node_id }
+              );
+              core.info(`Enabled auto-merge for PR #${prNumber}.`);
+            } catch (error) {
+              const graphqlErrors = Array.isArray(error?.errors) ? error.errors : [];
+              const autoMergeNotAllowed = graphqlErrors.some((entry) =>
+                typeof entry?.type === "string" &&
+                entry.type.toUpperCase() === "UNPROCESSABLE" &&
+                entry?.message === "Auto merge is not allowed for this repository" &&
+                Array.isArray(entry?.path) &&
+                entry.path.includes("enablePullRequestAutoMerge")
+              );
+              if (autoMergeNotAllowed) {
+                core.warning("Auto-merge is disabled in repository settings; skipping enablement.");
+                return;
+              }
+              throw error;
+            }
