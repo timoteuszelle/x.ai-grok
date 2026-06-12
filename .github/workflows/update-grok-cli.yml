@@ -173,7 +173,8 @@ jobs:
             } catch (error) {
               const graphqlErrors = Array.isArray(error?.errors) ? error.errors : [];
               const autoMergeNotAllowed = graphqlErrors.some((entry) =>
-                entry?.type === "UNPROCESSABLE" &&
+                typeof entry?.type === "string" &&
+                entry.type.toUpperCase() === "UNPROCESSABLE" &&
                 entry?.message === "Auto merge is not allowed for this repository" &&
                 Array.isArray(entry?.path) &&
                 entry.path.includes("enablePullRequestAutoMerge")
