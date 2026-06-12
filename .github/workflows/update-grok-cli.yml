@@ -173,7 +173,10 @@ jobs:
             } catch (error) {
               const graphqlErrors = Array.isArray(error?.errors) ? error.errors : [];
               const autoMergeNotAllowed = graphqlErrors.some((entry) =>
-                entry?.type === "UNPROCESSABLE" && /auto merge is not allowed/i.test(entry?.message || "")
+                entry?.type === "UNPROCESSABLE" &&
+                entry?.message === "Auto merge is not allowed for this repository" &&
+                Array.isArray(entry?.path) &&
+                entry.path.includes("enablePullRequestAutoMerge")
               );
               if (autoMergeNotAllowed) {
                 core.warning("Auto-merge is disabled in repository settings; skipping enablement.");
