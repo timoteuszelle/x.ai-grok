@@ -147,24 +147,33 @@ jobs:
               core.info(`Auto-merge already enabled for PR #${prNumber}.`);
               return;
             }
-            await github.graphql(
-              `
-                mutation EnableAutoMerge($pullRequestId: ID!) {
-                  enablePullRequestAutoMerge(
-                    input: {
-                      pullRequestId: $pullRequestId
-                      mergeMethod: MERGE
-                    }
-                  ) {
-                    pullRequest {
-                      number
-                      autoMergeRequest {
-                        enabledAt
+            try {
+              await github.graphql(
+                `
+                  mutation EnableAutoMerge($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(
+                      input: {
+                        pullRequestId: $pullRequestId
+                        mergeMethod: MERGE
+                      }
+                    ) {
+                      pullRequest {
+                        number
+                        autoMergeRequest {
+                          enabledAt
+                        }
                       }
                     }
                   }
                 }
-              `,
-              { pullRequestId: pr.node_id }
-            );
-            core.info(`Enabled auto-merge for PR #${prNumber}.`);
+                `,
+                { pullRequestId: pr.node_id }
+              );
+              core.info(`Enabled auto-merge for PR #${prNumber}.`);
+            } catch (error) {
+              if (error?.errors?.some((entry) => entry?.message === "Auto merge is not allowed for this repository")) {
+                core.warning("Auto-merge is disabled in repository settings; skipping enablement.");
+                return;
+              }
+              throw error;
+            }
