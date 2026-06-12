@@ -171,7 +171,8 @@ jobs:
               );
               core.info(`Enabled auto-merge for PR #${prNumber}.`);
             } catch (error) {
-              const autoMergeNotAllowed = error?.errors?.some((entry) =>
+              const graphqlErrors = Array.isArray(error?.errors) ? error.errors : [];
+              const autoMergeNotAllowed = graphqlErrors.some((entry) =>
                 entry?.type === "UNPROCESSABLE" && /auto merge is not allowed/i.test(entry?.message || "")
               );
               if (autoMergeNotAllowed) {
