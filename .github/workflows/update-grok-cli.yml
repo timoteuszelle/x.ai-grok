@@ -171,7 +171,10 @@ jobs:
               );
               core.info(`Enabled auto-merge for PR #${prNumber}.`);
             } catch (error) {
-              if (error?.errors?.some((entry) => entry?.message === "Auto merge is not allowed for this repository")) {
+              const autoMergeNotAllowed = error?.errors?.some((entry) =>
+                entry?.type === "UNPROCESSABLE" && /auto merge is not allowed/i.test(entry?.message || "")
+              );
+              if (autoMergeNotAllowed) {
                 core.warning("Auto-merge is disabled in repository settings; skipping enablement.");
                 return;
               }
