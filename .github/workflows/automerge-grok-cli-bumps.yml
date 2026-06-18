@@ -112,35 +112,70 @@ jobs:
                   continue;
                 }
 
-                if (pr.mergeable === false || pr.mergeable_state !== "clean") {
+                if (pr.mergeable === false) {
                   core.info(
                     `Skipping PR #${pr.number}: mergeable=${pr.mergeable}, mergeable_state=${pr.mergeable_state}.`
                   );
                   continue;
                 }
 
-                await github.graphql(
-                  `
-                    mutation EnableAutoMerge($pullRequestId: ID!) {
-                      enablePullRequestAutoMerge(
-                        input: {
-                          pullRequestId: $pullRequestId
-                          mergeMethod: MERGE
-                        }
-                      ) {
-                        pullRequest {
-                          number
-                          autoMergeRequest {
-                            enabledAt
+                if (pr.mergeable_state === "clean") {
+                  await github.rest.pulls.merge({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: pr.number,
+                    merge_method: "merge",
+                    sha: pr.head.sha
+                  });
+                  core.info(`Merged eligible PR #${pr.number} immediately.`);
+                  continue;
+                }
+
+                try {
+                  await github.graphql(
+                    `
+                      mutation EnableAutoMerge($pullRequestId: ID!) {
+                        enablePullRequestAutoMerge(
+                          input: {
+                            pullRequestId: $pullRequestId
+                            mergeMethod: MERGE
+                          }
+                        ) {
+                          pullRequest {
+                            number
+                            autoMergeRequest {
+                              enabledAt
+                            }
                           }
                         }
                       }
-                    }
-                  `,
-                  { pullRequestId: pr.node_id }
-                );
+                    `,
+                    { pullRequestId: pr.node_id }
+                  );
 
-                core.info(`Enabled auto-merge for PR #${pr.number}.`);
+                  core.info(`Enabled auto-merge for PR #${pr.number}.`);
+                } catch (err) {
+                  const graphqlErrors = Array.isArray(err?.errors) ? err.errors : [];
+                  const alreadyClean = graphqlErrors.some((entry) =>
+                    typeof entry?.type === "string" &&
+                    entry.type.toUpperCase() === "UNPROCESSABLE" &&
+                    entry?.message === "Pull request Pull request is in clean status" &&
+                    Array.isArray(entry?.path) &&
+                    entry.path.includes("enablePullRequestAutoMerge")
+                  );
+                  if (alreadyClean) {
+                    await github.rest.pulls.merge({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      pull_number: pr.number,
+                      merge_method: "merge",
+                      sha: pr.head.sha
+                    });
+                    core.info(`Merged eligible PR #${pr.number} after clean-status response.`);
+                    continue;
+                  }
+                  throw err;
+                }
               } catch (err) {
                 core.error(`Failed to process PR #${candidate.number}: ${err}`);
                 // Continue with other PRs (important for check_suite events with multiple PRs).
