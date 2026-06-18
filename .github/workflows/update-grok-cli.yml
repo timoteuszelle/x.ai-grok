@@ -147,6 +147,21 @@ jobs:
               core.info(`Auto-merge already enabled for PR #${prNumber}.`);
               return;
             }
+            if (pr.mergeable === false) {
+              core.info(`Skipping PR #${prNumber}: mergeable=${pr.mergeable}, mergeable_state=${pr.mergeable_state}.`);
+              return;
+            }
+            if (pr.mergeable_state === "clean") {
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                merge_method: "merge",
+                sha: pr.head.sha,
+              });
+              core.info(`Merged eligible PR #${prNumber} immediately.`);
+              return;
+            }
             try {
               await github.graphql(
                 `
@@ -178,8 +193,26 @@ jobs:
                 Array.isArray(entry?.path) &&
                 entry.path.includes("enablePullRequestAutoMerge")
               );
+              const alreadyClean = graphqlErrors.some((entry) =>
+                typeof entry?.type === "string" &&
+                entry.type.toUpperCase() === "UNPROCESSABLE" &&
+                entry?.message === "Pull request Pull request is in clean status" &&
+                Array.isArray(entry?.path) &&
+                entry.path.includes("enablePullRequestAutoMerge")
+              );
               if (autoMergeNotAllowed) {
                 core.warning("Auto-merge is disabled in repository settings; skipping enablement.");
+                return;
+              }
+              if (alreadyClean) {
+                await github.rest.pulls.merge({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: prNumber,
+                  merge_method: "merge",
+                  sha: pr.head.sha,
+                });
+                core.info(`Merged eligible PR #${prNumber} after clean-status response.`);
                 return;
               }
               throw error;
