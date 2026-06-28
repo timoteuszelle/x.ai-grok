@@ -87,10 +87,14 @@ This repository includes two workflows to automate updates and releases:
   - Opens a PR with the update and applies the `automerge` label (creating the label if needed)
 
 - `.github/workflows/release-from-pin.yml`
-  - Triggers: push to `main` when `pkgs/grok-cli.nix` changes, and manual (`workflow_dispatch`)
+  - Triggers:
+    - push to `main` when `pkgs/grok-cli.nix` changes
+    - merged bump PR closures (`pull_request_target` on `closed` for `chore/grok-cli-*` bot PRs)
+    - manual (`workflow_dispatch`)
   - Reads the pinned version from `pkgs/grok-cli.nix`
   - Uses tag format `v<version>`
   - Creates a release if missing, or reuses the existing release for that tag
+  - Prunes old bump branches after release sync, keeping only the latest 5 `chore/grok-cli-*` branches (while preserving any with open PRs)
 
 - `.github/workflows/automerge-grok-cli-bumps.yml`
   - Triggers: `pull_request_target` events and completed `check_suite` events

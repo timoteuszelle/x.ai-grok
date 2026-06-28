@@ -7,12 +7,18 @@ on:
     paths:
       - pkgs/grok-cli.nix
       - .github/workflows/release-from-pin.yml
+  pull_request_target:
+    types:
+      - closed
+    branches:
+      - main
   workflow_dispatch:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
   contents: write
+  pull-requests: read
 
 concurrency:
   group: release-from-pin
@@ -20,10 +26,21 @@ concurrency:
 
 jobs:
   release:
+    if: >
+      github.event_name != 'pull_request_target' ||
+      (
+        github.event.pull_request.merged == true &&
+        github.event.pull_request.base.ref == 'main' &&
+        github.event.pull_request.user.login == 'github-actions[bot]' &&
+        startsWith(github.event.pull_request.head.ref, 'chore/grok-cli-')
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          # On pull_request_target closed events, ensure we read the latest main pin.
+          ref: refs/heads/main
 
       - name: Read pinned Grok CLI version
         id: version
@@ -74,3 +91,81 @@ jobs:
 
       - name: Print release URL
         run: 'echo "Release URL: ${{ steps.release.outputs.url }}"'
+
+      - name: Prune old bump branches (keep latest 5)
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prefix = "chore/grok-cli-";
+            const keepCount = 5;
+
+            const branches = await github.paginate(github.rest.repos.listBranches, {
+              owner,
+              repo,
+              per_page: 100
+            });
+
+            const bumpBranches = branches.filter((b) => b.name.startsWith(prefix));
+            if (bumpBranches.length <= keepCount) {
+              core.info(`Nothing to prune: found ${bumpBranches.length} bump branches (<= ${keepCount}).`);
+              return;
+            }
+
+            const branchMetadata = [];
+            for (const branch of bumpBranches) {
+              try {
+                const { data: commit } = await github.rest.repos.getCommit({
+                  owner,
+                  repo,
+                  ref: branch.name
+                });
+
+                const dateRaw =
+                  commit?.commit?.committer?.date ||
+                  commit?.commit?.author?.date ||
+                  "1970-01-01T00:00:00Z";
+                branchMetadata.push({
+                  name: branch.name,
+                  timestamp: Number(new Date(dateRaw)) || 0
+                });
+              } catch (error) {
+                core.warning(`Skipping branch '${branch.name}' due to metadata read error: ${error}`);
+              }
+            }
+
+            branchMetadata.sort((a, b) => b.timestamp - a.timestamp);
+            const keepSet = new Set(branchMetadata.slice(0, keepCount).map((item) => item.name));
+            const pruneCandidates = branchMetadata.filter((item) => !keepSet.has(item.name));
+
+            if (pruneCandidates.length === 0) {
+              core.info("No branches eligible for pruning after ranking.");
+              return;
+            }
+
+            for (const candidate of pruneCandidates) {
+              try {
+                const { data: openPrs } = await github.rest.pulls.list({
+                  owner,
+                  repo,
+                  state: "open",
+                  head: `${owner}:${candidate.name}`,
+                  per_page: 1
+                });
+
+                if (openPrs.length > 0) {
+                  core.info(`Keeping '${candidate.name}' because it has an open PR.`);
+                  continue;
+                }
+
+                await github.rest.git.deleteRef({
+                  owner,
+                  repo,
+                  ref: `heads/${candidate.name}`
+                });
+                core.info(`Deleted old bump branch '${candidate.name}'.`);
+              } catch (error) {
+                core.warning(`Failed to delete branch '${candidate.name}': ${error}`);
+              }
+            }
