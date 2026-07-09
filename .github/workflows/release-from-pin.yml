@@ -31,8 +31,10 @@ concurrency:
 jobs:
   release:
     if: >
-      github.event_name != 'pull_request_target' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name != 'pull_request_target' && github.event_name != 'workflow_run') ||
       (
+        github.event_name == 'pull_request_target' &&
         github.event.pull_request.merged == true &&
         github.event.pull_request.base.ref == 'main' &&
         github.event.pull_request.user.login == 'github-actions[bot]' &&
