@@ -12,6 +12,10 @@ on:
       - closed
     branches:
       - main
+  workflow_run:
+    workflows: ["Update Grok CLI"]
+    types:
+      - completed
   workflow_dispatch:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -77,7 +81,7 @@ jobs:
                 owner,
                 repo,
                 tag_name: tag,
-                target_commitish: context.sha,
+                target_commitish: "main",
                 name: tag,
                 body: `Automated release for Grok CLI ${version}.`,
                 draft: false,
